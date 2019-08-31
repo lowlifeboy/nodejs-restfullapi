@@ -10,6 +10,8 @@ const app = express();
 // parse application/json
 app.use(bodyParser.json());
 
+// -------------------- SignIn / SignUp --------------------
+
 app.post('/signup', function(req, res) {
   signup.addUser(req, res, function(err, data) {
     if (err) {
@@ -32,6 +34,8 @@ app.post('/signin', (req, res) => {
   });
 });
 
+// -------------------- Common section --------------------
+
 /** verifyToken method - this method verifies token */
 function verifyToken(req, res, next) {
   //Request header with authorization key
@@ -51,45 +55,6 @@ function verifyToken(req, res, next) {
   }
 }
 
-/** Create posts protected route */
-// app.post('/api/posts', verifyToken, (req, res) => {
-//   jwt.verify(req.token, 'SuperSecRetKey', (err, authData) => {
-//     if (err) {
-//       res.sendStatus(403);
-//     } else {
-//       res.json({
-//         msg: 'A new post is created',
-//         authData,
-//       });
-//     }
-//   });
-// });
-
-// app.use('/v1', v1);
-
-// app.use('/', function(req, res) {
-//   res.statusCode = 200; //send the appropriate status code
-//   res.json({ status: 'success', message: 'Parcel Pending API', data: {} });
-// });
-
-// // catch 404 and forward to error handler
-// app.use(function(req, res, next) {
-//   var err = new Error('Not Found');
-//   err.status = 404;
-//   next(err);
-// });
-
-// // error handler
-// app.use(function(err, req, res, next) {
-//   // set locals, only providing error in development
-//   res.locals.message = err.message;
-//   res.locals.error = req.app.get('env') === 'development' ? err : {};
-
-//   // render the error page
-//   res.status(err.status || 500);
-//   res.render('error');
-// });
-
 //create database connection
 const conn = mysql.createConnection({
   host: 'localhost',
@@ -107,6 +72,8 @@ conn.connect(err => {
 app.get('/', (req, res) => {
   res.send('Home page');
 });
+
+// -------------------- Users section --------------------
 
 app.get('/users', (req, res) => {
   let sql = 'SELECT * FROM users';
@@ -169,6 +136,8 @@ app.delete('/users/:id', (req, res) => {
     res.send(JSON.stringify({ status: 200, error: null, response: results }));
   });
 });
+
+// -------------------- Items section --------------------
 
 //show all items
 app.get('/items', (req, res) => {

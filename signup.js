@@ -15,10 +15,15 @@ conn.connect(err => {
 var signup = function() {};
 
 signup.prototype.addUser = function(req, res, callback) {
-  let params = [req.body.phone, req.body.name, req.body.email, req.body.password],
-    feedbackQuery = 'INSERT INTO users (phone,name,email,password) VALUES (?,?,?,?)';
+  let data = {
+    phone: req.body.phone,
+    name: req.body.name,
+    email: req.body.email,
+    password: req.body.password,
+  };
+  let sql = `INSERT INTO users SET ?`;
 
-  conn.query(feedbackQuery, params, (err, results) => {
+  conn.query(sql, data, (err, results) => {
     if (err) throw err;
     res.send(JSON.stringify({ status: 200, error: null, response: results }));
   });
