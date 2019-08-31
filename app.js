@@ -2,37 +2,12 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bodyParser = require('body-parser');
 const mysql = require('mysql');
-const signup = require('./signup.js');
 const { check, validationResult } = require('express-validator');
 
 const app = express();
 
 // parse application/json
 app.use(bodyParser.json());
-
-// -------------------- SignIn / SignUp --------------------
-
-app.post('/signup', function(req, res) {
-  signup.addUser(req, res, function(err, data) {
-    if (err) {
-      res.json({ error: true, message: 'Error adding user .. !' });
-    } else {
-      res.json({ success: true, message: 'User added succesfully' });
-    }
-  });
-});
-
-//User signin route - create a token and return to user
-app.post('/signin', (req, res) => {
-  const user = {
-    id: 1,
-    username: 'johndoe',
-    email: 'john.doe@test.com',
-  };
-  jwt.sign({ user }, 'SuperSecRetKey', { expiresIn: 60 * 60 }, (err, token) => {
-    res.json({ token });
-  });
-});
 
 // -------------------- Common section --------------------
 
@@ -73,27 +48,10 @@ app.get('/', (req, res) => {
   res.send('Home page');
 });
 
-// -------------------- Users section --------------------
-
-app.get('/users', (req, res) => {
-  let sql = 'SELECT * FROM users';
-  let query = conn.query(sql, (err, results) => {
-    if (err) throw err;
-    res.send(JSON.stringify({ status: 200, error: null, response: results }));
-  });
-});
-
-app.get('/users/:id', (req, res) => {
-  let id = req.params.id;
-  let sql = `SELECT * FROM users WHERE id = ?`;
-  let query = conn.query(sql, id, (err, results) => {
-    if (err) throw err;
-    res.send(JSON.stringify({ status: 200, error: null, response: results }));
-  });
-});
+// -------------------- SignIn / SignUp --------------------
 
 app.post(
-  '/users',
+  '/signup',
   [
     check('phone').isNumeric(),
     check('name').isLength({ min: 3 }),
@@ -118,6 +76,37 @@ app.post(
     });
   }
 );
+
+//User signin route - create a token and return to user
+app.post('/login', (req, res) => {
+  const user = {
+    id: 1,
+    username: 'johndoe',
+    email: 'john.doe@test.com',
+  };
+  jwt.sign({ user }, 'SuperSecRetKey', { expiresIn: 60 * 60 }, (err, token) => {
+    res.json({ token });
+  });
+});
+
+// -------------------- Users section --------------------
+
+app.get('/users', (req, res) => {
+  let sql = 'SELECT * FROM users';
+  let query = conn.query(sql, (err, results) => {
+    if (err) throw err;
+    res.send(JSON.stringify({ status: 200, error: null, response: results }));
+  });
+});
+
+app.get('/users/:id', (req, res) => {
+  let id = req.params.id;
+  let sql = `SELECT * FROM users WHERE id = ?`;
+  let query = conn.query(sql, id, (err, results) => {
+    if (err) throw err;
+    res.send(JSON.stringify({ status: 200, error: null, response: results }));
+  });
+});
 
 app.put('/users/:id', (req, res) => {
   let data = [req.body.phone, req.body.name, req.body.email, req.body.password, req.params.id];
