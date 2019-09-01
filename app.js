@@ -44,6 +44,12 @@ conn.connect(err => {
   console.log('Mysql Connected...');
 });
 
+let currentUserData = {
+  id: 0,
+  phone: '',
+  email: '',
+};
+
 app.get('/', (req, res) => {
   res.send('Home page');
 });
@@ -51,7 +57,7 @@ app.get('/', (req, res) => {
 // -------------------- SignIn / SignUp --------------------
 
 app.post(
-  '/signup',
+  '/api/register',
   [
     check('phone').isNumeric(),
     check('name').isLength({ min: 3 }),
@@ -72,20 +78,57 @@ app.post(
     let sql = `INSERT INTO users SET ?`;
     let query = conn.query(sql, data, (err, results) => {
       if (err) throw err;
-      res.send(JSON.stringify({ status: 200, error: null, response: results }));
+
+      jwt.sign(
+        { email: data[0], password: data[1] },
+        'SuperSecRetKey',
+        { expiresIn: 60 * 60 },
+        (err, token) => {
+          res.json({ token });
+        }
+      );
     });
   }
 );
 
-//User signin route - create a token and return to user
-app.post('/login', (req, res) => {
-  const user = {
-    id: 1,
-    username: 'johndoe',
-    email: 'john.doe@test.com',
-  };
-  jwt.sign({ user }, 'SuperSecRetKey', { expiresIn: 60 * 60 }, (err, token) => {
-    res.json({ token });
+app.post('/api/login', (req, res) => {
+  let data = [req.body.email, req.body.password];
+  let sql = 'SELECT * FROM users WHERE email = ? AND password = ?';
+  let query = conn.query(sql, data, (err, results) => {
+    if (err || results.length === 0) {
+      res.statusCode = 422;
+      res.send(
+        JSON.stringify({
+          field: 'password',
+          message: 'Wrong email or password',
+        })
+      );
+    }
+
+    jwt.sign(
+      { email: data[0], password: data[1] },
+      'SuperSecRetKey',
+      { expiresIn: 60 * 60 },
+      (err, token) => {
+        currentUserData.id = results[0].id;
+        currentUserData.phone = results[0].phone;
+        currentUserData.email = results[0].email;
+        res.json({ token });
+      }
+    );
+  });
+});
+
+app.get('/api/me', verifyToken, (req, res) => {
+  jwt.verify(req.token, 'SuperSecRetKey', (err, authData) => {
+    if (err) {
+      res.sendStatus(403);
+    } else if (currentUserData.id === 0) {
+      res.sendStatus(401);
+      res.send();
+    } else {
+      res.send(JSON.stringify({ response: currentUserData }));
+    }
   });
 });
 
@@ -142,48 +185,80 @@ app.get('/items/:id', (req, res) => {
   let id = req.params.id;
   let sql = `SELECT * FROM items WHERE id = ?`;
   let query = conn.query(sql, id, (err, results) => {
-    if (err) throw err;
-    res.send(JSON.stringify({ status: 200, error: null, response: results }));
+    if (err) {
+      throw err;
+    } else if (results.length === 0) {
+      res.statusCode = 422;
+      res.send();
+    } else {
+      res.send(JSON.stringify({ status: 200, error: null, response: results }));
+    }
   });
 });
 
 //add new items
 app.post(
   '/items',
-  [check('title').isLength({ min: 5 }), check('price').isNumeric(), check('user_id').isNumeric()],
+  [check('title').isLength({ min: 3 }), check('price').isNumeric(), check('user_id').isNumeric()],
   verifyToken,
   (req, res) => {
     jwt.verify(req.token, 'SuperSecRetKey', (err, authData) => {
       if (err) {
         res.sendStatus(403);
-      } else {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-          return res.status(422).json({ errors: errors.array() });
-        }
-        let data = {
-          title: req.body.title,
-          price: req.body.price,
-          image: req.body.image,
-          user_id: req.body.user_id,
-        };
-        let sql = `INSERT INTO items SET ?`;
-        let query = conn.query(sql, data, (err, results) => {
-          if (err) throw err;
-          res.send(JSON.stringify({ status: 200, error: null, response: results }));
-        });
       }
+      if (currentUserData.id === 0) {
+        res.sendStatus(401);
+      }
+
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(422).json({ errors: errors.array() });
+      }
+      let data = {
+        title: req.body.title,
+        price: req.body.price,
+        image: req.body.image,
+        user_id: req.body.user_id,
+      };
+      let sql = `INSERT INTO items SET ?`;
+      let query = conn.query(sql, data, (err, results) => {
+        if (err) throw err;
+        if (results.length === 0) {
+          res.sendStatus(404);
+        }
+        res.send(JSON.stringify({ status: 200, error: null, response: results }));
+      });
     });
   }
 );
 
 //update items
-app.put('/items/:id', (req, res) => {
+app.put('/items/:id', verifyToken, (req, res) => {
   let data = [req.body.title, req.body.price, req.body.image, req.body.user_id, req.params.id];
   let sql = `UPDATE items SET title = ?, price = ?, image = ?, user_id = ? WHERE id = ?`;
-  let query = conn.query(sql, data, (err, results) => {
-    if (err) throw err;
-    res.send(JSON.stringify({ status: 200, error: null, response: results }));
+  jwt.verify(req.token, 'SuperSecRetKey', (err, authData) => {
+    if (err) {
+      res.sendStatus(403);
+    }
+    if (currentUserData.id === 0) {
+      res.sendStatus(401);
+    }
+    let query = conn.query(sql, data, (err, results) => {
+      if (err) throw err;
+      if (results.length === 0) {
+        res.sendStatus(404);
+      }
+      if (results[0].title.length < 3) {
+        res.sendStatus(422);
+        res.send([
+          {
+            field: 'title',
+            message: 'Title should contain at least 3 characters',
+          },
+        ]);
+      }
+      res.send(JSON.stringify({ status: 200, error: null, response: results }));
+    });
   });
 });
 
@@ -192,14 +267,22 @@ app.delete('/items/:id', verifyToken, (req, res) => {
   jwt.verify(req.token, 'SuperSecRetKey', (err, authData) => {
     if (err) {
       res.sendStatus(403);
-    } else {
-      let id = req.params.id;
-      let sql = `DELETE FROM items WHERE id = ?`;
-      let query = conn.query(sql, id, (err, results) => {
-        if (err) throw err;
-        res.send(JSON.stringify({ status: 200, error: null, response: results }));
-      });
     }
+    if (currentUserData.id === 0) {
+      res.sendStatus(401);
+    }
+
+    let id = req.params.id;
+    let sql = `DELETE FROM items WHERE id = ?`;
+    let query = conn.query(sql, id, (err, results) => {
+      if (err) {
+        throw err;
+      }
+      if (results.length === 0) {
+        res.sendStatus(404);
+      }
+      res.sendStatus(200);
+    });
   });
 });
 
